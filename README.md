@@ -24,27 +24,37 @@
 
 ## 🚀 快速开始
 
-### 前置要求
+### 一键使用
+
+前往 [GitHub Actions 页面](https://github.com/dmlgzs/StarResonanceDamageCounter/actions) 下载最新自动打包版本。
+
+前往 [Release 页面](https://github.com/dmlgzs/StarResonanceDamageCounter/releases) 下载发布版本。
+
+### 手动编译
+
+#### 前置要求
 
 - **Node.js** >= 22.15.0
 - **pnpm** >= 10.13.1
 - **WinPcap/Npcap** (网络抓包驱动)
-- **Visual Studio Build Tools** (编译依赖) 
+- **Visual Studio Build Tools** (编译依赖)
   - 可通过 [Visual Studio Installer](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 安装
   - 选择“C++ 生成工具”工作负载
 - **Python** 3.10 (编译依赖)
   - 可通过 [Python 官网](https://www.python.org/downloads/) 下载并安装
   - 确保 Python 添加到系统 PATH 中
 
-### 安装步骤
+#### 安装步骤
 
 1. **克隆仓库**
+
    ```bash
    git clone https://github.com/dmlgzs/StarResonanceDamageCounter.git
    cd StarResonanceDamageCounter
    ```
 
 2. **安装依赖**
+
    ```bash
    corepack enable
    pnpm install
@@ -55,22 +65,34 @@
    - 确保安装时选择了“WinPcap API-compatible mode”
 
 4. **运行**
+
    ```bash
    node server.js
    ```
-   
+
    运行后将提示你：
    - 选择用于抓包的网络设备（可通过控制面板查看网卡信息）
    - 选择日志等级（`info`：基础信息，`debug`：详细日志）
-   
+
    你也可以通过命令行参数直接指定：
 
    ```bash
    node server.js <device_number> <log_level>
    ```
 
-   例如：
-   
+   或使用自动检测模式（推荐）：
+
+   ```bash
+   node server.js auto info
+   ```
+
+   自动检测模式会：
+   - 智能识别物理网卡，排除虚拟网卡（如 ZeroTier、VMware 等）
+   - 分析 3 秒网络流量，自动选择最活跃的网卡
+   - 无流量时回退到路由表方法
+
+   手动指定示例：
+
    ```bash
    node server.js 4 info
    ```
@@ -79,7 +101,7 @@
 
 1. **选择网络设备**
    - 启动程序后，会显示可用的网络设备列表
-   - 输入对应设备的编号（通常选择主网卡）
+   - 输入对应设备在程序输出的列表里显示的数字编号（通常选择主网卡）
    - 可以前往控制面板或者系统设置查找使用的网卡
 
 2. **设置日志级别**
@@ -97,6 +119,7 @@
 ## 📱 Web 界面功能
 
 ### 数据展示
+
 - **角色 ID** - 玩家角色标识
 - **总伤害/治疗** - 累计造成的总伤害/治疗量
 - **伤害分类** - 纯暴击、纯幸运、暴击幸运等详细分类
@@ -106,6 +129,7 @@
 - **总 DPS/HPS** - 整体平均输出效率
 
 ### 操作功能
+
 - **清空数据** - 重置所有统计数据
 - **主题切换** - 在日间/夜间模式间切换
 - **自动刷新** - 每 100ms 自动更新数据
@@ -113,6 +137,7 @@
 ## 🛠️ 技术架构
 
 ### 核心依赖
+
 - **[cap](https://github.com/mscdex/cap)** - 网络数据包捕获
 - **[express](https://expressjs.com/)** - Web 服务器框架
 - **[protobufjs](https://github.com/protobufjs/protobuf.js)** - Protocol Buffers 解析
@@ -121,9 +146,11 @@
 ## 📡 API 接口
 
 ### GET /api/data
+
 获取实时战斗数据统计
 
 **响应示例：**
+
 ```json
 {
   "code": 0,
@@ -165,9 +192,11 @@
 ```
 
 ### GET /api/clear
+
 清空所有统计数据
 
 **响应示例：**
+
 ```json
 {
   "code": 0,
@@ -196,6 +225,10 @@
    - 确保已安装 Visual Studio Build Tools 和 Python
    - 确认 Node.js 版本符合要求
 
+5. **启动程序立马自动退出**
+   - 确保已安装 Npcap
+   - 确认网络设备选择输入了正确的数字编号
+
 ## 📄 许可证
 
 [![](https://www.gnu.org/graphics/agplv3-with-text-162x68.png)](LICENSE)
@@ -203,8 +236,6 @@
 本项目采用 [GNU AFFERO GENERAL PUBLIC LICENSE version 3](LICENSE) 许可证。
 
 使用本项目即表示您同意遵守该许可证的条款。
-
-不欢迎某些不遵守本许可证的人。不欢迎某些修改或翻译了开源代码却做闭源、开源一更新闭源就跟进的人。
 
 ### 衍生软件相关
 
@@ -218,6 +249,7 @@
 欢迎提交 Issue 和 Pull Request 来改进项目！
 
 ### 贡献者名单
+
 [![Contributors](https://contrib.rocks/image?repo=dmlgzs/StarResonanceDamageCounter)](https://github.com/dmlgzs/StarResonanceDamageCounter/graphs/contributors "Contributors")
 
 ## ⭐ 支持

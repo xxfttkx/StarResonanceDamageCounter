@@ -1034,8 +1034,9 @@
                         m.PassiveSkillEndInfos = $root.SeqPassiveSkillEndInfo.decode(r, r.uint32());
                         break;
                     }
+                /* 不需要的暂时不读防止报错
                 case 10: {
-                        m.BuffInfos = $root.BuffInfoSync.decode(r, r.uint32());
+                        m.BuffInfos = $root.BuffInfoSync.decode(r, r.uint32()); // 2025/8/15 BETA更新中删除，并将后续field向前移动
                         break;
                     }
                 case 11: {
@@ -1054,6 +1055,7 @@
                         m.MagneticRideQueueChangeInfoList.push($root.MagneticRideQueueChangeInfo.decode(r, r.uint32()));
                         break;
                     }
+                */
                 default:
                     r.skipType(t & 7);
                     break;
@@ -49126,15 +49128,15 @@
                 if (t === e)
                     break;
                 switch (t >>> 3) {
-                case 1: {
+                case 2: {
                         m.StartTime = r.uint64();
                         break;
                     }
-                case 2: {
+                case 3: {
                         m.EndTime = r.uint64();
                         break;
                     }
-                case 3: {
+                case 4: {
                         if (m.Rewards === $util.emptyObject)
                             m.Rewards = {};
                         var c2 = r.uint32() + r.pos;
@@ -94561,8 +94563,9 @@
                         m.BuffInfos = $root.BuffInfoSync.decode(r, r.uint32());
                         break;
                     }
+                /* 不需要的暂时不读防止报错
                 case 8: {
-                        m.BuffEffect = $root.BuffEffectSync.decode(r, r.uint32());
+                        m.BuffEffect = $root.BuffEffectSync.decode(r, r.uint32()); // 2025/8/15 BETA更新中删除，并将后续field向前移动
                         break;
                     }
                 case 9: {
@@ -94592,6 +94595,7 @@
                         m.MagneticRideQueueChangeInfoDict[typeof k === "object" ? $util.longToHash(k) : k] = value;
                         break;
                     }
+                */
                 default:
                     r.skipType(t & 7);
                     break;

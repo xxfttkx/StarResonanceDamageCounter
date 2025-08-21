@@ -17,6 +17,10 @@ const PROTOCOL = decoders.PROTOCOL;
 const print = console.log;
 const app = express();
 const { exec } = require('child_process');
+const findDefaultNetworkDevice = require('./algo/netInterfaceUtil');
+
+const skillConfig = require('./tables/skill_names.json').skill_names;
+const VERSION = '2.8.5';
 
 const rl = readline.createInterface({
     input: process.stdin,
@@ -24,16 +28,8 @@ const rl = readline.createInterface({
 });
 const devices = cap.deviceList();
 
-const elementMap = {
-    fire: '🔥火',
-    ice: '❄️冰',
-    thunder: '⚡雷',
-    earth: '🍀森',
-    wind: '💨风',
-    light: '✨光',
-    dark: '🌙暗',
-    physics: '⚔️',
-};
+// 暂停统计状态
+let isPaused = false;
 
 function ask(question) {
     return new Promise((resolve) => {
@@ -47,26 +43,33 @@ function getSubProfessionBySkillId(skillId) {
     switch (skillId) {
         case 1241:
             return '射线';
+        case 2307:
+        case 2361:
         case 55302:
             return '协奏';
         case 20301:
-        case 21418:
             return '愈合';
         case 1518:
         case 1541:
+        case 21402:
             return '惩戒';
         case 2306:
             return '狂音';
+        case 120901:
         case 120902:
             return '冰矛';
         case 1714:
         case 1734:
             return '居合';
         case 44701:
+        case 179906:
             return '月刃';
         case 220112:
         case 2203622:
             return '鹰弓';
+        case 2292:
+        case 1700820:
+        case 1700825:
         case 1700827:
             return '狼弓';
         case 1419:
@@ -80,6 +83,11 @@ function getSubProfessionBySkillId(skillId) {
             return '光盾';
         case 199902:
             return '岩盾';
+        case 1930:
+        case 1931:
+        case 1934:
+        case 1935:
+            return '格挡';
         default:
             return '';
     }
@@ -110,9 +118,10 @@ class Lock {
 
 // 通用统计类，用于处理伤害或治疗数据
 class StatisticData {
-    constructor(user, type) {
+    constructor(user, type, element) {
         this.user = user;
         this.type = type || '';
+        this.element = element || '';
         this.stats = {
             normal: 0,
             critical: 0,
@@ -255,18 +264,20 @@ class UserData {
 
     /** 添加伤害记录
      * @param {number} skillId - 技能ID/Buff ID
+     * @param {string} element - 技能元素属性
      * @param {number} damage - 伤害值
      * @param {boolean} isCrit - 是否为暴击
      * @param {boolean} [isLucky] - 是否为幸运
+     * @param {boolean} [isCauseLucky] - 是否造成幸运
      * @param {number} hpLessenValue - 生命值减少量
      */
-    addDamage(skillId, damage, isCrit, isLucky, hpLessenValue = 0) {
+    addDamage(skillId, element, damage, isCrit, isLucky, isCauseLucky, hpLessenValue = 0) {
         this.damageStats.addRecord(damage, isCrit, isLucky, hpLessenValue);
         // 记录技能使用情况
         if (!this.skillUsage.has(skillId)) {
-            this.skillUsage.set(skillId, new StatisticData(this, '伤害'));
+            this.skillUsage.set(skillId, new StatisticData(this, '伤害', element));
         }
-        this.skillUsage.get(skillId).addRecord(damage, isCrit, isLucky, hpLessenValue);
+        this.skillUsage.get(skillId).addRecord(damage, isCrit, isCauseLucky, hpLessenValue);
         this.skillUsage.get(skillId).realtimeWindow.length = 0;
 
         const subProfession = getSubProfessionBySkillId(skillId);
@@ -277,20 +288,23 @@ class UserData {
 
     /** 添加治疗记录
      * @param {number} skillId - 技能ID/Buff ID
+     * @param {string} element - 技能元素属性
      * @param {number} healing - 治疗值
      * @param {boolean} isCrit - 是否为暴击
      * @param {boolean} [isLucky] - 是否为幸运
+     * @param {boolean} [isCauseLucky] - 是否造成幸运
      */
-    addHealing(skillId, healing, isCrit, isLucky) {
+    addHealing(skillId, element, healing, isCrit, isLucky, isCauseLucky) {
         this.healingStats.addRecord(healing, isCrit, isLucky);
         // 记录技能使用情况
+        skillId = skillId + 1000000000;
         if (!this.skillUsage.has(skillId)) {
-            this.skillUsage.set(skillId, new StatisticData(this, '治疗'));
+            this.skillUsage.set(skillId, new StatisticData(this, '治疗', element));
         }
-        this.skillUsage.get(skillId).addRecord(healing, isCrit, isLucky);
+        this.skillUsage.get(skillId).addRecord(healing, isCrit, isCauseLucky);
         this.skillUsage.get(skillId).realtimeWindow.length = 0;
 
-        const subProfession = getSubProfessionBySkillId(skillId);
+        const subProfession = getSubProfessionBySkillId(skillId - 1000000000);
         if (subProfession) {
             this.setSubProfession(subProfession);
         }
@@ -359,10 +373,8 @@ class UserData {
             const luckyCount = stat.count.lucky;
             const critRate = stat.count.total > 0 ? critCount / stat.count.total : 0;
             const luckyRate = stat.count.total > 0 ? luckyCount / stat.count.total : 0;
-            const skillConfig = require('./skill_config.json').skills;
-            const cfg = skillConfig[skillId];
-            const name = cfg ? cfg.name : skillId;
-            const elementype = elementMap[cfg?.element] ?? '';
+            const name = skillConfig[skillId % 1000000000] ?? skillId % 1000000000;
+            const elementype = stat.element;
 
             skills[skillId] = {
                 displayName: name,
@@ -441,6 +453,9 @@ class UserDataManager {
         this.saveThrottleDelay = 2000; // 2秒节流延迟，避免频繁磁盘写入
         this.saveThrottleTimer = null;
         this.pendingSave = false;
+
+        this.hpCache = new Map(); // 这个经常变化的就不存盘了
+        this.startTime = Date.now();
     }
 
     /** 加载用户缓存 */
@@ -516,6 +531,12 @@ class UserDataManager {
                 if (cachedData.fightPoint !== undefined && cachedData.fightPoint !== null) {
                     user.setFightPoint(cachedData.fightPoint);
                 }
+                if (cachedData.maxHp !== undefined && cachedData.maxHp !== null) {
+                    user.setAttrKV('max_hp', cachedData.maxHp);
+                }
+            }
+            if (this.hpCache.has(uid)) {
+                user.setAttrKV('hp', this.hpCache.get(uid));
             }
 
             this.users.set(uid, user);
@@ -526,34 +547,34 @@ class UserDataManager {
     /** 添加伤害记录
      * @param {number} uid - 造成伤害的用户ID
      * @param {number} skillId - 技能ID/Buff ID
+     * @param {string} element - 技能元素属性
      * @param {number} damage - 伤害值
      * @param {boolean} isCrit - 是否为暴击
      * @param {boolean} [isLucky] - 是否为幸运
+     * @param {boolean} [isCauseLucky] - 是否造成幸运
      * @param {number} hpLessenValue - 生命值减少量
      */
-    addDamage(uid, skillId, damage, isCrit, isLucky, hpLessenValue = 0) {
+    addDamage(uid, skillId, element, damage, isCrit, isLucky, isCauseLucky, hpLessenValue = 0) {
+        if (isPaused) return;
         const user = this.getUser(uid);
-        user.addDamage(skillId, damage, isCrit, isLucky, hpLessenValue);
+        user.addDamage(skillId, element, damage, isCrit, isLucky, isCauseLucky, hpLessenValue);
     }
 
     /** 添加治疗记录
      * @param {number} uid - 进行治疗的用户ID
      * @param {number} skillId - 技能ID/Buff ID
+     * @param {string} element - 技能元素属性
      * @param {number} healing - 治疗值
      * @param {boolean} isCrit - 是否为暴击
      * @param {boolean} [isLucky] - 是否为幸运
+     * @param {boolean} [isCauseLucky] - 是否造成幸运
      * @param {number} targetUid - 被治疗的用户ID
      */
-    addHealing(uid, skillId, healing, isCrit, isLucky, targetUid) {
-        const user = this.getUser(uid);
-        user.addHealing(skillId, healing, isCrit, isLucky);
-        const targetUser = this.getUser(targetUid);
-        if (targetUser.attr.hp && typeof targetUser.attr.hp == 'number') {
-            if (targetUser.attr.max_hp && targetUser.attr.max_hp - targetUser.attr.hp < healing) {
-                targetUser.attr.hp = targetUser.attr.max_hp;
-            } else {
-                targetUser.attr.hp += healing;
-            }
+    addHealing(uid, skillId, element, healing, isCrit, isLucky, isCauseLucky, targetUid) {
+        if (isPaused) return;
+        if (uid !== 0) {
+            const user = this.getUser(uid);
+            user.addHealing(skillId, element, healing, isCrit, isLucky, isCauseLucky);
         }
     }
 
@@ -562,11 +583,9 @@ class UserDataManager {
      * @param {number} damage - 承受的伤害值
      * */
     addTakenDamage(uid, damage) {
+        if (isPaused) return;
         const user = this.getUser(uid);
         user.addTakenDamage(damage);
-        if (user.attr.hp && typeof user.attr.hp == 'number') {
-            user.attr.hp = damage > user.attr.hp ? 0 : user.attr.hp - damage;
-        }
     }
 
     /** 设置用户职业
@@ -637,6 +656,19 @@ class UserDataManager {
     setAttrKV(uid, key, value) {
         const user = this.getUser(uid);
         user.attr[key] = value;
+
+        if (key === 'max_hp') {
+            // 更新缓存
+            const uidStr = String(uid);
+            if (!this.userCache.has(uidStr)) {
+                this.userCache.set(uidStr, {});
+            }
+            this.userCache.get(uidStr).maxHp = value;
+            this.saveUserCacheThrottled();
+        }
+        if (key === 'hp') {
+            this.hpCache.set(uid, value);
+        }
     }
 
     /** 更新所有用户的实时DPS和HPS */
@@ -672,6 +704,7 @@ class UserDataManager {
     /** 清除所有用户数据 */
     clearAll() {
         this.users.clear();
+        this.startTime = Date.now();
     }
 
     /** 获取用户列表 */
@@ -680,15 +713,12 @@ class UserDataManager {
     }
 }
 
-// 暂停统计状态
-let isPaused = false;
-
 async function main() {
     print('Welcome to use Damage Counter for Star Resonance!');
-    print('Version: V2.5');
+    print(`Version: V${VERSION}`);
     print('GitHub: https://github.com/dmlgzs/StarResonanceDamageCounter');
     for (let i = 0; i < devices.length; i++) {
-        print(i + '.\t' + devices[i].description);
+        print(String(i).padStart(2, ' ') + '.' + (devices[i].description || devices[i].name));
     }
 
     // 从命令行参数获取设备号和日志级别
@@ -696,24 +726,45 @@ async function main() {
     let num = args[0];
     let log_level = args[1];
 
+    if (num === 'auto') {
+        print('Auto detecting default network interface...');
+        const device_num = await findDefaultNetworkDevice(devices);
+        if (device_num) {
+            num = device_num;
+            print(`Using network interface: ${num} - ${devices[num].description}`);
+        } else {
+            print('Default network interface not found!');
+            num = undefined;
+        }
+    }
+
     // 参数验证函数
     function isValidLogLevel(level) {
         return ['info', 'debug'].includes(level);
     }
 
     // 如果命令行没传或者不合法，使用交互
-    if (num === undefined || !devices[num]) {
-        num = await ask('Please enter the number of the device used for packet capture: ');
+    while (num === undefined || !devices[num]) {
+        num = await ask('Please enter the number of the device to capture: ');
+        if (!num) {
+            print('Auto detecting default network interface...');
+            const device_num = await findDefaultNetworkDevice(devices);
+            if (device_num) {
+                num = device_num;
+                print(`Using network interface: ${num} - ${devices[num].description}`);
+            } else {
+                print('Default network interface not found!');
+                num = undefined;
+            }
+        }
         if (!devices[num]) {
             print('Cannot find device ' + num + '!');
-            process.exit(1);
         }
     }
-    if (log_level === undefined || !isValidLogLevel(log_level)) {
+    while (log_level === undefined || !isValidLogLevel(log_level)) {
         log_level = (await ask('Please enter log level (info|debug): ')) || 'info';
         if (!isValidLogLevel(log_level)) {
             print('Invalid log level!');
-            process.exit(1);
         }
     }
 
@@ -828,7 +879,7 @@ async function main() {
         });
     });
 
-    // 每50ms广播数据给所有WebSocket客户端
+    // 每100ms广播数据给所有WebSocket客户端
     setInterval(() => {
         if (!isPaused) {
             const userData = userDataManager.getAllUsersData();
@@ -838,7 +889,7 @@ async function main() {
             };
             io.emit('data', data);
         }
-    }, 50);
+    }, 100);
 
     const checkPort = (port) => {
         return new Promise((resolve) => {
@@ -980,7 +1031,7 @@ async function main() {
     }
     c.setMinBytes && c.setMinBytes(0);
     c.on('packet', async function (nbytes, trunc) {
-        eth_queue.push(Buffer.from(buffer));
+        eth_queue.push(Buffer.from(buffer.subarray(0, nbytes)));
     });
     const processEthPacket = async (frameBuffer) => {
         // logger.debug('packet: length ' + nbytes + ' bytes, truncated? ' + (trunc ? 'yes' : 'no'));

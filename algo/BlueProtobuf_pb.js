@@ -90731,15 +90731,15 @@ proto.UserActivityInfo.deserializeBinaryFromReader = function(msg, reader) {
     }
     var field = reader.getFieldNumber();
     switch (field) {
-    case 1:
+    case 2:
       var value = /** @type {number} */ (reader.readUint64());
       msg.setStarttime(value);
       break;
-    case 2:
+    case 3:
       var value = /** @type {number} */ (reader.readUint64());
       msg.setEndtime(value);
       break;
-    case 3:
+    case 4:
       var value = msg.getRewardsMap();
       reader.readMessage(value, function(message, reader) {
         jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readUint32, jspb.BinaryReader.prototype.readMessage, proto.UserActivityRewardInfo.deserializeBinaryFromReader, 0, new proto.UserActivityRewardInfo());
