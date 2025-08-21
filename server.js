@@ -1086,7 +1086,7 @@ async function main() {
             if (_data.length >= packetSize) {
                 const packet = _data.subarray(0, packetSize);
                 _data = _data.subarray(packetSize);
-                const processor = new PacketProcessor({ logger, userDataManager });
+                const processor = new PacketProcessor({ logger, userDataManager, io });
                 if (!isPaused) processor.processPacket(packet);
             } else if (packetSize > 0x0fffff) {
                 logger.error(`Invalid Length!! ${_data.length},${len},${_data.toString('hex')},${tcp_next_seq}`);

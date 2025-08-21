@@ -180,9 +180,10 @@ const streamReadString = (reader) => {
 let currentUserUuid = Long.ZERO;
 
 class PacketProcessor {
-    constructor({ logger, userDataManager }) {
+    constructor({ logger, userDataManager, io }) {
         this.logger = logger;
         this.userDataManager = userDataManager;
+        this.io = io;
     }
 
     _decompressPayload(buffer) {
@@ -230,6 +231,16 @@ class PacketProcessor {
             const isDead = syncDamageInfo.IsDead != null ? syncDamageInfo.IsDead : false;
             const isLucky = !!luckyValue;
             const hpLessenValue = syncDamageInfo.HpLessenValue != null ? syncDamageInfo.HpLessenValue : Long.ZERO;
+            
+            if(isDead){
+                // If the target is dead, we don't log the damage
+                this.logger.info(`Target ${targetUuid.toString()} is dead, skipping damage log.`);
+                this.io.emit('targetDead', {
+                    uuid: targetUuid.toString(),
+                    time: Date.now()
+                });
+                continue;
+            }
 
             if (isTargetPlayer) {
                 //玩家目标
